@@ -139,7 +139,7 @@ class Runner:
         return report
 
     def validate_paths(self, paths):
-        if not paths:
+        if not isinstance(paths, list) or not paths or not all(isinstance(value, str) and value for value in paths):
             raise AutomationError("Explicit changed paths are required")
         result = []
         for value in paths:
@@ -154,7 +154,10 @@ class Runner:
                     [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]]
         commands += [["node", "--check", str(p.relative_to(ROOT))] for p in sorted((ROOT / "dist").glob("*.js"))]
         for command in commands:
-            result = subprocess.run(command, cwd=ROOT, capture_output=True)
+            try:
+                result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=600)
+            except subprocess.TimeoutExpired:
+                raise AutomationError("Local validation timed out; nothing was published") from None
             if result.returncode:
                 raise AutomationError("Local validation failed: " + " ".join(command) + ". Run it locally for details.")
         print("Local tests and JavaScript syntax checks passed.")
@@ -201,6 +204,9 @@ class Runner:
         if existing:
             pr = existing[0]
             if pr.get("merged_at"):
+                if self.git("branch", "--show-current") == branch:
+                    self.git("switch", "main")
+                    self.git("pull", "--ff-only", "origin", "main")
                 print("Already merged: " + pr["html_url"])
                 return
             if pr["state"] != "open":
