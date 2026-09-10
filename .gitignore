@@ -3,3 +3,5 @@ token.txt
 node_modules/
 .artifacts/
 .openai/
+__pycache__/
+*.pyc
